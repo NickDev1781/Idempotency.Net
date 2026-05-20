@@ -141,6 +141,38 @@ public sealed class RedisIdempotencyStoreTests : IClassFixture<RedisContainerFix
         Assert.True(exists);
     }
 
+    [Fact]
+    public async Task SaveAsync_WithExpiredRecord_DoesNotPersistAndDeletesKey()
+    {
+        // Arrange
+        const int database = 7;
+        string keyPrefix = BuildKeyPrefix("ttl-expired");
+        string requestKey = BuildRequestKey();
+        await _fixture.FlushDatabaseAsync(database);
+
+        await using var provider = BuildProvider(database, keyPrefix, RedisConfigurationMode.ConnectionString);
+        var store = provider.GetRequiredService<IdempotencyStore>();
+
+        var expiredRecord = new IdempotencyRecord
+        {
+            Key = requestKey,
+            StatusCode = 200,
+            ResponseBody = "{\"result\":\"ok\"}",
+            ContentType = "application/json; charset=utf-8",
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-10),
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-5) 
+        };
+
+        // Act
+        await store.SaveAsync(expiredRecord);
+
+        // Assert
+        var mux = _fixture.Connection;
+        var db = mux.GetDatabase(database);
+        var exists = await db.KeyExistsAsync(keyPrefix + requestKey);
+        Assert.False(exists);
+    }
+
     private ServiceProvider BuildProvider(
         int database,
         string keyPrefix,
@@ -172,6 +204,7 @@ public sealed class RedisIdempotencyStoreTests : IClassFixture<RedisContainerFix
 
         return services.BuildServiceProvider();
     }
+
 
     private static async Task SaveAsync(ServiceProvider provider, IdempotencyRecord record)
     {

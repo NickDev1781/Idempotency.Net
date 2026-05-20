@@ -35,25 +35,43 @@ internal sealed class RedisIdempotencyStore : IdempotencyStore
 
         IdempotencyRecord? record = JsonSerializer.Deserialize<IdempotencyRecord>(payload.ToString(), SerializerOptions);
 
-        return record?.ExpiresAt is not null && record.ExpiresAt <= DateTimeOffset.UtcNow ? null : record;
+        //return record?.ExpiresAt is not null && record.ExpiresAt <= DateTimeOffset.UtcNow ? null : record;
+
+        if (record is not null && record.ExpiresAt is not null && record.ExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            await db.KeyDeleteAsync(BuildRedisKey(key)).ConfigureAwait(false);
+            return null;
+        }
+
+        return record;
     }
 
     public async Task SaveAsync(
         IdempotencyRecord record,
         CancellationToken cancellationToken = default)
     {
+        Console.WriteLine($"SaveAsync: ExpiresAt={record.ExpiresAt}, UtcNow={DateTimeOffset.UtcNow}, IsExpired={record.ExpiresAt <= DateTimeOffset.UtcNow}");
         IDatabase db = _connection.GetDatabase(_options.Database);
+        string redisKey = BuildRedisKey(record.Key);
+
+        if  (record.ExpiresAt is not null && record.ExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            await db.KeyDeleteAsync(redisKey).ConfigureAwait(false);
+            return;
+        }
+
         string payload = JsonSerializer.Serialize(record, SerializerOptions);
+
 
         TimeSpan? expiry = null;
         if (record.ExpiresAt is not null)
         {
             TimeSpan remainingTtl = record.ExpiresAt.Value - DateTimeOffset.UtcNow;
-            expiry = remainingTtl > TimeSpan.Zero ? remainingTtl : TimeSpan.Zero;
+            expiry = remainingTtl;
         }
 
         await db.StringSetAsync(
-            BuildRedisKey(record.Key),
+            redisKey,
             payload,
             expiry).ConfigureAwait(false);
     }
