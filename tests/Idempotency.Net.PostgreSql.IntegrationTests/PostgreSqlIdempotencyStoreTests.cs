@@ -180,7 +180,6 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlCo
                 options.Schema = schema;
                 options.TableName = tableName;
                 options.EnableAutoCreateTable = enableAutoCreateTable;
-                options.UseAdvisoryLocks = useAdvisoryLocks;
                 options.CleanupBatchSize = cleanupBatchSize;
             });
 

@@ -87,7 +87,6 @@ public sealed class PostgreSqlConcurrencyTests : IClassFixture<PostgreSqlContain
                     options.Schema = schema;
                     options.TableName = tableName;
                     options.EnableAutoCreateTable = true;
-                    options.UseAdvisoryLocks = true; 
                     options.CleanupBatchSize = 1000;
                 });
 

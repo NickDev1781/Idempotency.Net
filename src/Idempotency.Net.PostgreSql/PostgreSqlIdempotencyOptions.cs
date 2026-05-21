@@ -26,11 +26,6 @@ public sealed class PostgreSqlIdempotencyOptions
     public bool EnableAutoCreateTable { get; set; } = true;
 
     /// <summary>
-    /// (Obsolete) This option is no longer used; locking is handled by IIdempotencyLock.
-    /// </summary>
-    public bool UseAdvisoryLocks { get; set; } = true;
-
-    /// <summary>
     /// Gets or sets the command timeout for PostgreSQL operations. Default is 30 seconds.
     /// </summary>
     public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(30);
