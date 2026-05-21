@@ -35,7 +35,6 @@ else if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase))
         options.Schema = "idempotency";
         options.TableName = "requests";
         options.EnableAutoCreateTable = true;
-        options.UseAdvisoryLocks = true;
         options.CommandTimeout = TimeSpan.FromSeconds(15);
         options.CleanupBatchSize = 2_000;
     });

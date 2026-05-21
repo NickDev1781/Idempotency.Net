@@ -1,0 +1,35 @@
+name: Publish NuGet
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '10.0.x'
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    - name: Run tests
+      run: |
+        dotnet test tests/Idempotency.Net.Redis.IntegrationTests --configuration Release --no-build
+        dotnet test tests/Idempotency.Net.PostgreSql.IntegrationTests --configuration Release --no-build
+        dotnet test tests/Idempotency.Net.InMemory.IntegrationTests --configuration Release --no-build
+        dotnet test tests/Idempotency.Net.AspNetCore.IntegrationTests --configuration Release --no-build
+    - name: Pack NuGet packages
+      run: |
+        dotnet pack src/Idempotency.Net/Idempotency.Net.csproj --configuration Release --no-build --output ./nupkgs
+        dotnet pack src/Idempotency.Net.Redis/Idempotency.Net.Redis.csproj --configuration Release --no-build --output ./nupkgs
+        dotnet pack src/Idempotency.Net.PostgreSql/Idempotency.Net.PostgreSql.csproj --configuration Release --no-build --output ./nupkgs
+        dotnet pack src/Idempotency.Net.AspNetCore/Idempotency.Net.AspNetCore.csproj --configuration Release --no-build --output ./nupkgs
+    - name: Push to NuGet
+      run: |
+        dotnet nuget push ./nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
