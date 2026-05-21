@@ -2,6 +2,7 @@ using Idempotency.Net.Abstractions;
 using Idempotency.Net.Extensions;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Idempotency.Net.PostgreSql;
 
@@ -19,6 +20,7 @@ public static class PostgreSqlIdempotencyBuilderExtensions
         builder.Services.AddScoped<PostgreSqlIdempotencyStore>();
         builder.Services.AddScoped<IdempotencyStore>(serviceProvider =>
             serviceProvider.GetRequiredService<PostgreSqlIdempotencyStore>());
+        builder.Services.TryAddScoped<IIdempotencyLock, PostgreSqlIdempotencyLock>();
 
         return builder;
     }

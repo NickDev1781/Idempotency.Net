@@ -68,9 +68,6 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
 
         await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        if (_options.UseAdvisoryLocks)
-            await AcquireAdvisoryLockAsync(connection, record.Key, cancellationToken).ConfigureAwait(false);
-
         if (_options.CleanupBatchSize > 0)
             await CleanupExpiredAsync(connection, cancellationToken).ConfigureAwait(false);
 
@@ -115,21 +112,6 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task AcquireAdvisoryLockAsync(
-        NpgsqlConnection connection,
-        string key,
-        CancellationToken cancellationToken)
-    {
-        const string sql = "SELECT pg_advisory_xact_lock(hashtextextended(@key, 0));";
-
-        await using NpgsqlCommand command = new(sql, connection)
-        {
-            CommandTimeout = (int)_options.CommandTimeout.TotalSeconds,
-        };
-
-        command.Parameters.AddWithValue("key", key);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
 
     private async Task CleanupExpiredAsync(
         NpgsqlConnection connection,

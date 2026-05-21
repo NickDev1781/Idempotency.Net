@@ -35,7 +35,6 @@ internal sealed class RedisIdempotencyStore : IdempotencyStore
 
         IdempotencyRecord? record = JsonSerializer.Deserialize<IdempotencyRecord>(payload.ToString(), SerializerOptions);
 
-        //return record?.ExpiresAt is not null && record.ExpiresAt <= DateTimeOffset.UtcNow ? null : record;
 
         if (record is not null && record.ExpiresAt is not null && record.ExpiresAt <= DateTimeOffset.UtcNow)
         {
@@ -50,7 +49,6 @@ internal sealed class RedisIdempotencyStore : IdempotencyStore
         IdempotencyRecord record,
         CancellationToken cancellationToken = default)
     {
-        Console.WriteLine($"SaveAsync: ExpiresAt={record.ExpiresAt}, UtcNow={DateTimeOffset.UtcNow}, IsExpired={record.ExpiresAt <= DateTimeOffset.UtcNow}");
         IDatabase db = _connection.GetDatabase(_options.Database);
         string redisKey = BuildRedisKey(record.Key);
 

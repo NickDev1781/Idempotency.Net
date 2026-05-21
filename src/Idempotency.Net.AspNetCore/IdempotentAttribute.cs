@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc.Diagnostics;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
 
 namespace Idempotency.Net.AspNetCore;
 
@@ -40,13 +39,8 @@ public sealed class IdempotentAttribute : Attribute, IAsyncActionFilter
             return;
         }
 
-
-        IConnectionMultiplexer mux = requestServices.GetRequiredService<IConnectionMultiplexer>();
-        IDatabase db = mux.GetDatabase();
-        string lockKey = "lock:" + key;
-        string lockToken = Guid.NewGuid().ToString();
-
-        bool lockAcquired = await db.LockTakeAsync(lockKey, lockToken, options.LockExpiry);
+        IIdempotencyLock lockProvider = requestServices.GetRequiredService<IIdempotencyLock>();
+        bool lockAcquired = await lockProvider.AcquireAsync(key, cancellationToken).ConfigureAwait(false);
         if (!lockAcquired)
         {
             context.Result = new StatusCodeResult(423);
@@ -67,17 +61,13 @@ public sealed class IdempotentAttribute : Attribute, IAsyncActionFilter
                 return;
 
             IdempotencyRecord? resultToPersist = ToRecord(key, executedContext.Result, options);
-            if (resultToPersist is null)
-                return;
-
-            await service.SaveAsync(resultToPersist, cancellationToken).ConfigureAwait(false);
+            if (resultToPersist is not null)
+                await service.SaveAsync(resultToPersist, cancellationToken).ConfigureAwait(false);
         }
-
         finally
         {
-            await db.LockReleaseAsync(lockKey, lockToken);
+            await lockProvider.ReleaseAsync(key).ConfigureAwait(false);
         }
-
     }
 
     private static bool TryGetIdempotencyKey(HttpContext httpContext, IdempotencyOptions options, out string key)

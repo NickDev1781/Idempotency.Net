@@ -43,6 +43,7 @@ public static class RedisIdempotencyBuilderExtensions
         builder.Services.AddScoped<RedisIdempotencyStore>();
         builder.Services.AddScoped<IdempotencyStore>(serviceProvider =>
             serviceProvider.GetRequiredService<RedisIdempotencyStore>());
+        builder.Services.TryAddScoped<IIdempotencyLock, RedisIdempotencyLock>();
 
         return builder;
     }
