@@ -10,7 +10,7 @@
 
 Duplicate API calls are a constant threat in distributed systems. Whether it's a double payment, a duplicate order, or a retried webhook — idempotency is essential.
 
-Existing solutions like [IdempotentAPI]([https://github.com/myjhdevelopment/IdempotentAPI](https://github.com/ikyriak/IdempotentAPI)) are powerful, but they require **multiple NuGet packages, external locking libraries, and verbose configuration**.
+Existing solutions like [IdempotentAPI](https://github.com/ikyriak/IdempotentAPI)) are powerful, but they require **multiple NuGet packages, external locking libraries, and verbose configuration**.
 
 **Idempotency.Net** gives you the same guarantees with **one package, one line of configuration, and zero external dependencies** for distributed locking.
 
