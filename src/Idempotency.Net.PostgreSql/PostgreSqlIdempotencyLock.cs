@@ -12,17 +12,19 @@ namespace Idempotency.Net.PostgreSql
     {
         private readonly PostgreSqlIdempotencyOptions _options;
 
+        private readonly NpgsqlDataSource _dataSource;
+
         private readonly Dictionary<string, (NpgsqlConnection Connection, NpgsqlTransaction Transaction)> _locks = new();
 
-        public PostgreSqlIdempotencyLock(IOptions<PostgreSqlIdempotencyOptions> options)
+        public PostgreSqlIdempotencyLock(IOptions<PostgreSqlIdempotencyOptions> options, NpgsqlDataSource dataSource)
         {
             _options = options.Value;
+            _dataSource = dataSource;
         }
 
         public async Task<bool> AcquireAsync(string key, CancellationToken cancellationToken = default)
         {
-            var connection = new NpgsqlConnection(_options.ConnectionString);
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             var transaction = await connection.BeginTransactionAsync();
 
             using var cmd = new NpgsqlCommand(

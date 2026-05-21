@@ -9,13 +9,15 @@ namespace Idempotency.Net.PostgreSql;
 internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
 {
     private readonly PostgreSqlIdempotencyOptions _options;
+    private readonly NpgsqlDataSource _dataSource;
 
     private readonly SemaphoreSlim _tableCreationLock = new(1, 1);
     private volatile bool _tableCreated;
 
-    public PostgreSqlIdempotencyStore(IOptions<PostgreSqlIdempotencyOptions> options)
+    public PostgreSqlIdempotencyStore(IOptions<PostgreSqlIdempotencyOptions> options, NpgsqlDataSource dataSource)
     {
         _options = options.Value;
+        _dataSource = dataSource;
     }
 
     public async Task<IdempotencyRecord?> GetAsync(
@@ -24,7 +26,7 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
     {
         await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
-        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         var sql = $"""
             SELECT status_code, response_body, content_type, created_at, expires_at
@@ -66,7 +68,7 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
     {
         await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
-        await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         if (_options.CleanupBatchSize > 0)
             await CleanupExpiredAsync(connection, cancellationToken).ConfigureAwait(false);
@@ -137,15 +139,6 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
-            throw new InvalidOperationException("PostgreSql connection string is required.");
-
-        NpgsqlConnection connection = new(_options.ConnectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return connection;
-    }
 
     private async Task EnsureTableAsync(CancellationToken cancellationToken)
     {
@@ -158,7 +151,7 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
             if (_tableCreated)
                 return;
 
-            await using NpgsqlConnection connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            await using NpgsqlConnection connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             var quotedSchema = QuoteIdentifier(_options.Schema);
             var quotedTable = QuoteIdentifier(_options.TableName);
 
