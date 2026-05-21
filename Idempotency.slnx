@@ -11,6 +11,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Idempotency.Net.Redis.IntegrationTests/Idempotency.Net.Redis.IntegrationTests.csproj" />
+    <Project Path="tests/Idempotency.Net.InMemory.IntegrationTests/Idempotency.Net.InMemory.IntegrationTests.csproj" />
     <Project Path="tests/Idempotency.Net.PostgreSql.IntegrationTests/Idempotency.Net.PostgreSql.IntegrationTests.csproj" />
   </Folder>
 </Solution>
