@@ -24,4 +24,5 @@ public sealed class IdempotencyOptions
     /// Gets or sets the lifetime of a distributed lock. Default is 10 seconds.
     /// </summary>
     public TimeSpan LockExpiry { get; set; } = TimeSpan.FromSeconds(10);
+
 }

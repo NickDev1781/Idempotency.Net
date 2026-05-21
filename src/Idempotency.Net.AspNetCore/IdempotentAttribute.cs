@@ -64,14 +64,23 @@ public sealed class IdempotentAttribute : Attribute, IAsyncActionFilter
 
             IdempotencyRecord? resultToPersist = ToRecord(key, executedContext.Result, options);
             if (resultToPersist is not null)
-                await store.SaveAsync(resultToPersist, cancellationToken).ConfigureAwait(false);
+            {
+                try
+                {
+                    await store.SaveAsync(resultToPersist, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<IdempotentAttribute>>();
+                    logger.LogError(ex, "Failed to save idempotency record for key {Key}. Subsequent requests may re-execute the operation.", key);
+                }
+            }
 
             if (resultToPersist is null && executedContext.Result is not FileResult)
             {
                 var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<IdempotentAttribute>>();
                 logger.LogWarning("Idempotent record not created for action result of type {ResultType}.", executedContext.Result?.GetType());
             }
-
         }
         finally
         {

@@ -1,11 +1,10 @@
-using System.Text.Json;
-
 using Idempotency.Net.Abstractions;
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Idempotency.Net.AspNetCore.Extensions;
 
@@ -53,7 +52,18 @@ public static class RouteHandlerBuilderExtensions
 
                 IdempotencyRecord? resultToPersist = ToRecord(key, result, options);
                 if (resultToPersist is not null)
-                    await store.SaveAsync(resultToPersist, cancellationToken).ConfigureAwait(false);
+                {
+                    try
+                    {
+                        await store.SaveAsync(resultToPersist, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+                        var logger = loggerFactory.CreateLogger("Idempotency.Net.AspNetCore.MinimalApi");
+                        logger.LogError(ex, "Failed to save idempotency record for key {Key}. Subsequent requests may re-execute the operation.", key);
+                    }
+                }
 
                 return result;
             }
