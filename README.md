@@ -25,15 +25,21 @@ Existing solutions like [IdempotentAPI](https://github.com/ikyriak/IdempotentAPI
 - 🏗️ **Production‑ready** – built on `NpgsqlDataSource`, `StackExchange.Redis`, and modern .NET practices.
 
 ## Quick Start
+### 1. Install the required packages
 
-### 1. Install the package
+IdempotencyToolkit is modular. You always need **a storage provider** and the **ASP.NET Core integration**.  
+The core package is installed automatically as a dependency.
 
-Choose your storage:
-
+**For Redis:**
 ```bash
 dotnet add package IdempotencyToolkit.Redis
-# or
+dotnet add package IdempotencyToolkit.AspNetCore
+```
+
+**For PostgreSQL:**
+```bash
 dotnet add package IdempotencyToolkit.PostgreSql
+dotnet add package IdempotencyToolkit.AspNetCore
 ```
 
 > 💡 You never need to install `IdempotencyToolkit` directly.
@@ -66,6 +72,12 @@ builder.Services.AddIdempotency()
                 {
                     options.ConnectionString = "Host=localhost;...";
                 });
+```
+
+**In‑Memory (for development/testing):**
+```csharp
+builder.Services.AddIdempotency()
+                .UseInMemory();
 ```
 
 ### 3. Apply to controllers or Minimal API
@@ -158,6 +170,7 @@ A future version will introduce an option to delay the response until the record
 
 ## Known Limitations
 
+- **PostgreSQL locking:** The PostgreSQL provider holds a database connection and transaction for the entire duration of the business logic execution. Under high load, this may exhaust the connection pool. For high‑throughput scenarios, consider load‑testing or using the Redis provider.
 - **Response body size**: The library does not impose a limit on the cached response body size. It is the developer's responsibility to ensure that responses are not excessively large. A future version will include an optional `MaxResponseBodySize` setting.
 
 ## Running Tests
