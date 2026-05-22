@@ -13,13 +13,14 @@ namespace Idempotency.Net.Redis
     {
         private readonly IConnectionMultiplexer _connection;
         private readonly RedisIdempotencyOptions _options;
-
+        private readonly IdempotencyOptions _globalOptions;
         private readonly Dictionary<string, string> _lockTokens = new();
 
-        public RedisIdempotencyLock(IConnectionMultiplexer connection, IOptions<RedisIdempotencyOptions> options)
+        public RedisIdempotencyLock(IConnectionMultiplexer connection, IOptions<RedisIdempotencyOptions> options, IOptions<IdempotencyOptions> globalOptions)
         {
             _connection = connection;
             _options = options.Value;
+            _globalOptions = globalOptions.Value;
         }
 
         public async Task<bool> AcquireAsync(string key, CancellationToken cancellation = default)
@@ -28,7 +29,7 @@ namespace Idempotency.Net.Redis
             var lockKey = BuildLockKey(key);
             var lockToken = Guid.NewGuid().ToString();
 
-            bool acquired = await db.LockTakeAsync(lockKey, lockToken, _options.LockExpiry).ConfigureAwait(false);
+            bool acquired = await db.LockTakeAsync(lockKey, lockToken, _globalOptions.LockExpiry).ConfigureAwait(false);
             if (acquired)
             {
                 lock (_lockTokens)

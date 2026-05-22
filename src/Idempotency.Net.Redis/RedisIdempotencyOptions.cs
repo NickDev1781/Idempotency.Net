@@ -44,9 +44,4 @@ public sealed class RedisIdempotencyOptions
     /// Gets or sets whether to abort on connection failure. Default is false.
     /// </summary>
     public bool AbortOnConnectFail { get; set; }
-
-    /// <summary>
-    /// Gets or sets the lifetime of a distributed lock. Default is 10 seconds.
-    /// </summary>
-    public TimeSpan LockExpiry { get; set; } = TimeSpan.FromSeconds(10);
 }
