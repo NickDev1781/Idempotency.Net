@@ -7,7 +7,7 @@
 
 		<!-- NuGet metadata -->
 		<PackageId>IdempotencyToolkit.AspNetCore</PackageId>
-		<Version>1.0.1</Version>
+		<Version>1.1.0</Version>
 		<Authors>NickDev1781</Authors>
 		<Description>ASP.NET Core integration for IdempotencyToolkit. Provides [Idempotent] attribute and WithIdempotency() extension. Requires a storage provider (IdempotencyToolkit.Redis or IdempotencyToolkit.PostgreSql).</Description>
 		<PackageTags>aspnetcore;idempotency;filter;minimal-api</PackageTags>

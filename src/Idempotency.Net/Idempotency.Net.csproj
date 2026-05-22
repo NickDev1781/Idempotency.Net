@@ -7,7 +7,7 @@
 
 		<!-- NuGet metadata -->
 		<PackageId>IdempotencyToolkit</PackageId>
-		<Version>1.0.1</Version>
+		<Version>1.1.0</Version>
 		<Authors>NickDev1781</Authors>
 		<Description>Core abstractions and In-Memory provider for IdempotencyToolkit. Usually installed automatically; do not install directly.</Description>
 		<PackageTags>aspnetcore;idempotency;redis;postgresql;distributed-lock</PackageTags>
