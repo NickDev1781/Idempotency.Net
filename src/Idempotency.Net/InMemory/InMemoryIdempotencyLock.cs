@@ -6,26 +6,20 @@ namespace Idempotency.Net.InMemory;
 
 internal sealed class InMemoryIdempotencyLock : IIdempotencyLock
 {
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
-    private readonly IdempotencyOptions _options;
+    private readonly ConcurrentDictionary<string, byte> _locks = new();
 
     public InMemoryIdempotencyLock(IOptions<IdempotencyOptions> options)
     {
-        _options = options.Value;
     }
 
-    public async Task<bool> AcquireAsync(string key, CancellationToken cancellationToken = default)
+    public Task<bool> AcquireAsync(string key, CancellationToken cancellationToken = default)
     {
-        var semaphore = _locks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-        return await semaphore.WaitAsync(_options.LockTimeout, cancellationToken).ConfigureAwait(false);
+        return Task.FromResult(_locks.TryAdd(key, 0));
     }
 
     public Task ReleaseAsync(string key)
     {
-        if (_locks.TryGetValue(key, out var semaphore))
-        {
-            semaphore.Release();
-        }
+        _locks.TryRemove(key, out _);
         return Task.CompletedTask;
     }
 }
