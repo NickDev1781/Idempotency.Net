@@ -77,7 +77,16 @@ public static class RouteHandlerBuilderExtensions
             }
             finally
             {
-                await lockProvider.ReleaseAsync(key).ConfigureAwait(false);
+                try
+                {
+                    await lockProvider.ReleaseAsync(key).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+                    var logger = loggerFactory.CreateLogger("Idempotency.Net.AspNetCore.MinimalApi");
+                    logger.LogError(ex, "Failed to release idempotency lock for key {Key}", key);
+                }
             }
         });
 

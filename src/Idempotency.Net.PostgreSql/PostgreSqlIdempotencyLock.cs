@@ -24,30 +24,43 @@ namespace Idempotency.Net.PostgreSql
 
         public async Task<bool> AcquireAsync(string key, CancellationToken cancellationToken = default)
         {
-            var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-            var transaction = await connection.BeginTransactionAsync();
-
-            using var cmd = new NpgsqlCommand(
-                "SELECT pg_try_advisory_xact_lock(hashtextextended(@key, 0))",
-                connection, transaction);
-            cmd.Parameters.AddWithValue("key", key);
-            cmd.CommandTimeout = (int)_options.CommandTimeout.TotalSeconds;
-
-            bool acquired = (bool)await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-
-            if (acquired)
+            NpgsqlConnection? connection = null;
+            NpgsqlTransaction? transaction = null;
+            try
             {
+                connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+                transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+                using var cmd = new NpgsqlCommand(
+                    "SELECT pg_try_advisory_xact_lock(hashtextextended(@key, 0))",
+                    connection, transaction);
+                cmd.Parameters.AddWithValue("key", key);
+                cmd.CommandTimeout = (int)_options.CommandTimeout.TotalSeconds;
+
+                bool acquired = (bool)await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                if (!acquired)
+                {
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
                 lock (_locks)
                 {
                     _locks[key] = (connection, transaction);
                 }
                 return true;
             }
-            else
+            catch
             {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                await connection.CloseAsync().ConfigureAwait(false);
-                return false;
+                if (transaction is not null)
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw;
+            }
+            finally
+            {
+                // Если произошла ошибка, и соединение не было сохранено в словарь – закрываем его
+                if (connection is not null && (transaction is null || !_locks.ContainsKey(key)))
+                    await connection.CloseAsync().ConfigureAwait(false);
             }
         }
 

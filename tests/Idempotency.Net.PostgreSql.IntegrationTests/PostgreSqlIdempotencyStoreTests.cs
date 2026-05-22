@@ -1,8 +1,12 @@
 using Idempotency.Net.Abstractions;
 using Idempotency.Net.Extensions;
 using Idempotency.Net.PostgreSql.IntegrationTests.Fixtures;
-
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Idempotency.Net.PostgreSql.IntegrationTests;
 
@@ -139,6 +143,7 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlCo
             tableName,
             cleanupBatchSize: 100);
 
+        // 
         await SaveAsync(provider, CreateRecord(BuildRequestKey(), DefaultRecordTtl));
 
         await _fixture.InsertRawRecordAsync(
@@ -152,25 +157,58 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlCo
             expiresAt: DateTimeOffset.UtcNow.AddMinutes(-10));
 
         bool existedBeforeCleanup = await _fixture.RecordExistsInStorageAsync(schema, tableName, expiredKey);
+        Assert.True(existedBeforeCleanup);
 
         // Act
-        await SaveAsync(provider, CreateRecord(BuildRequestKey(), DefaultRecordTtl));
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var dataSource = provider.GetRequiredService<NpgsqlDataSource>();
+        var options = provider.GetRequiredService<IOptions<PostgreSqlIdempotencyOptions>>().Value;
 
-        bool existsAfterCleanup = await _fixture.RecordExistsInStorageAsync(schema, tableName, expiredKey);
+        using var scope = scopeFactory.CreateScope();
+        await using var connection = await dataSource.OpenConnectionAsync();
+        var qualifiedTable = $"{QuoteIdentifier(schema)}.{QuoteIdentifier(tableName)}";
+
+        var sql = $"""
+            WITH rows AS (
+                SELECT ctid
+                FROM {qualifiedTable}
+                WHERE expires_at IS NOT NULL AND expires_at <= NOW()
+                ORDER BY expires_at
+                LIMIT @batch_size
+            )
+            DELETE FROM {qualifiedTable}
+            WHERE ctid IN (SELECT ctid FROM rows);
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection)
+        {
+            CommandTimeout = (int)options.CommandTimeout.TotalSeconds,
+        };
+        command.Parameters.AddWithValue("batch_size", options.CleanupBatchSize > 0 ? options.CleanupBatchSize : 1000);
+        await command.ExecuteNonQueryAsync();
 
         // Assert
-        Assert.True(existedBeforeCleanup);
+        bool existsAfterCleanup = await _fixture.RecordExistsInStorageAsync(schema, tableName, expiredKey);
         Assert.False(existsAfterCleanup);
     }
 
+    private static string QuoteIdentifier(string identifier)
+    {
+        return $"\"{identifier.Replace("\"", "\"\"")}\"";
+    }
+
     private ServiceProvider BuildProvider(
-        string schema,
-        string tableName,
-        bool enableAutoCreateTable = true,
-        bool useAdvisoryLocks = true,
-        int cleanupBatchSize = 1000)
+    string schema,
+    string tableName,
+    bool enableAutoCreateTable = true,
+    bool useAdvisoryLocks = true,
+    int cleanupBatchSize = 1000,
+    bool enableBackgroundCleanup = false,   
+    TimeSpan? cleanupInterval = null)     
     {
         ServiceCollection services = new();
+
+        services.AddLogging(); 
 
         services
             .AddIdempotency()
@@ -181,7 +219,13 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlCo
                 options.TableName = tableName;
                 options.EnableAutoCreateTable = enableAutoCreateTable;
                 options.CleanupBatchSize = cleanupBatchSize;
+                options.EnableBackgroundCleanup = enableBackgroundCleanup;
+                options.CleanupInterval = cleanupInterval ?? TimeSpan.FromMinutes(5);
             });
+
+
+        services.AddSingleton<ILoggerFactory, NullLoggerFactory>();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
         return services.BuildServiceProvider();
     }

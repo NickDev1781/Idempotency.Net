@@ -34,4 +34,14 @@ public sealed class PostgreSqlIdempotencyOptions
     /// Gets or sets the maximum number of expired records to delete per cleanup. Set to 0 to disable. Default is 1000.
     /// </summary>
     public int CleanupBatchSize { get; set; } = 1000;
+
+    /// <summary>
+    /// Enables background cleanup of expired idempotency records. Default is true.
+    /// </summary>
+    public bool EnableBackgroundCleanup { get; set; } = true;
+
+    /// <summary>
+    /// Interval between background cleanup runs. Default is 5 minutes.
+    /// </summary>
+    public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromMinutes(5);
 }

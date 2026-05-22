@@ -70,9 +70,6 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        if (_options.CleanupBatchSize > 0)
-            await CleanupExpiredAsync(connection, cancellationToken).ConfigureAwait(false);
-
         var sql = $"""
             INSERT INTO {GetQualifiedTableName()} (
                 idempotency_key,
@@ -115,31 +112,6 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
     }
 
 
-    private async Task CleanupExpiredAsync(
-        NpgsqlConnection connection,
-        CancellationToken cancellationToken)
-    {
-        string sql = $"""
-            WITH rows AS (
-                SELECT ctid
-                FROM {GetQualifiedTableName()}
-                WHERE expires_at IS NOT NULL AND expires_at <= NOW()
-                LIMIT @batch_size
-            )
-            DELETE FROM {GetQualifiedTableName()}
-            WHERE ctid IN (SELECT ctid FROM rows);
-            """;
-
-        await using NpgsqlCommand command = new(sql, connection)
-        {
-            CommandTimeout = (int)_options.CommandTimeout.TotalSeconds,
-        };
-
-        command.Parameters.AddWithValue("batch_size", _options.CleanupBatchSize);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-
     private async Task EnsureTableAsync(CancellationToken cancellationToken)
     {
         if (!_options.EnableAutoCreateTable || _tableCreated)
@@ -156,24 +128,36 @@ internal sealed class PostgreSqlIdempotencyStore : IdempotencyStore
             var quotedTable = QuoteIdentifier(_options.TableName);
 
             string sql = $"""
-                CREATE SCHEMA IF NOT EXISTS {quotedSchema};
+            CREATE SCHEMA IF NOT EXISTS {quotedSchema};
 
-                CREATE TABLE IF NOT EXISTS {quotedSchema}.{quotedTable} (
-                    idempotency_key TEXT PRIMARY KEY,
-                    status_code INTEGER NOT NULL,
-                    response_body TEXT NULL,
-                    content_type TEXT NULL,
-                    created_at TIMESTAMPTZ NOT NULL,
-                    expires_at TIMESTAMPTZ NULL
-                );
-                """;
+            CREATE TABLE IF NOT EXISTS {quotedSchema}.{quotedTable} (
+                idempotency_key TEXT PRIMARY KEY,
+                status_code INTEGER NOT NULL,
+                response_body TEXT NULL,
+                content_type TEXT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                expires_at TIMESTAMPTZ NULL
+            );
+            """;
 
             await using NpgsqlCommand command = new(sql, connection)
             {
                 CommandTimeout = (int)_options.CommandTimeout.TotalSeconds,
             };
-
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            string indexSql = $"""
+            CREATE INDEX IF NOT EXISTS idx_{_options.TableName}_expires_at 
+                ON {quotedSchema}.{quotedTable} (expires_at) 
+                WHERE expires_at IS NOT NULL;
+            """;
+
+            await using NpgsqlCommand indexCommand = new(indexSql, connection)
+            {
+                CommandTimeout = (int)_options.CommandTimeout.TotalSeconds,
+            };
+            await indexCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
             _tableCreated = true;
         }
         finally

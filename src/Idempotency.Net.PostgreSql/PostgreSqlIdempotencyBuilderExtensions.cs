@@ -42,6 +42,8 @@ public static class PostgreSqlIdempotencyBuilderExtensions
             serviceProvider.GetRequiredService<PostgreSqlIdempotencyStore>());
         builder.Services.TryAddScoped<IIdempotencyLock, PostgreSqlIdempotencyLock>();
 
+        builder.Services.AddHostedService<BackgroundCleanupService>();
+
         return builder;
     }
 }
